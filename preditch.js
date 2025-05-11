@@ -16,7 +16,7 @@ let wordClients = [];
 let recentMessages = [];
 
 let money = 100;
-let investment = null; // { word, count }
+let investment = null; // { word, buyPrice, units }
 let investmentClients = [];
 
 function handleMessage(tags, message) {
@@ -39,6 +39,19 @@ function handleMessage(tags, message) {
   });
   const topWords = Object.entries(freq).sort((a, b) => b[1] - a[1]).slice(0, 10);
   wordClients.forEach(res => res.write(`data: ${JSON.stringify(topWords)}\n\n`));
+}
+
+function getWordCount(word) {
+  return recentMessages.reduce((acc, m) => {
+    const words = m.text.toLowerCase().split(/\W+/);
+    return acc + (words.includes(word) ? 1 : 0);
+  }, 0);
+}
+
+function broadcastInvestment() {
+  investmentClients.forEach(r =>
+    r.write(`data: ${JSON.stringify({ money, investment })}\n\n`)
+  );
 }
 
 app.post('/connect', (req, res) => {
@@ -113,34 +126,39 @@ app.get('/investment', (req, res) => {
 
 app.post('/invest', (req, res) => {
   const { word } = req.body;
-  const count = (recentMessages.reduce((acc, m) => {
-    const w = m.text.toLowerCase().split(/\W+/);
-    return acc + (w.includes(word.toLowerCase()) ? 1 : 0);
-  }, 0));
+  const price = getWordCount(word.toLowerCase()) || 1; // avoid divide-by-zero
+  const units = money / price;
 
-  investment = { word: word.toLowerCase(), count };
+  investment = { word: word.toLowerCase(), buyPrice: price, units };
+  money = 0;
+
   res.sendStatus(200);
-  investmentClients.forEach(r => r.write(`data: ${JSON.stringify({ money, investment })}\n\n`));
+  broadcastInvestment();
 });
 
 app.post('/sell', (req, res) => {
   if (!investment) return res.sendStatus(400);
 
-  const { word, count: startCount } = investment;
-  const currentCount = (recentMessages.reduce((acc, m) => {
-    const w = m.text.toLowerCase().split(/\W+/);
-    return acc + (w.includes(word) ? 1 : 0);
-  }, 0));
+  const price = getWordCount(investment.word.toLowerCase()) || 1;
+  const value = investment.units * price;
+  const gain = value;
 
-  const diff = currentCount - startCount;
-  console.log("Diff is ", diff);
-  money *= 1 + 0.1 * diff;
+  money = gain;
+  const result = (gain - investment.units * investment.buyPrice).toFixed(2);
+
+  const soldInfo = {
+    word: investment.word,
+    sellPrice: price,
+    units: investment.units
+  };
+
+  res.json({
+    result: `${result >= 0 ? '+' : ''}$${result}`,
+    sold: soldInfo
+  });
+
   investment = null;
-
-  const result = ((money / (1 + 0.1 * diff)) * (0.1 * diff)).toFixed(2);
-  console.log(result)
-  res.json({ result: `${diff >= 0 ? '+' : ''}$${result}` });
-  investmentClients.forEach(r => r.write(`data: ${JSON.stringify({ money, investment })}\n\n`));
+  broadcastInvestment();
 });
 
 app.listen(3000, () => console.log('Server running on http://localhost:3000'));

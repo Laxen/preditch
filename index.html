@@ -12,11 +12,10 @@
   <h2>Points: <span id="points">0</span></h2>
   <h2>Investment</h2>
   <div>Money: $<span id="money">100</span></div>
-  <div>Current: <span id="currentInvest">None</span></div>
+  <div>Status: <span id="status">None</span></div>
   <input type="text" id="investWord" placeholder="Word to invest">
   <button onclick="invest()">Invest</button>
   <button onclick="sell()">Sell</button>
-  <div>Last Result: <span id="lastResult">N/A</span></div>
   <h2>Chat</h2>
   <div id="chat" style="border:1px solid #ccc; height:200px; overflow-y:scroll;"></div>
   <h2>Top Words (last 10s)</h2>
@@ -110,7 +109,9 @@
       fetch('/sell', { method: 'POST' })
         .then(res => res.json())
         .then(data => {
-          document.getElementById('lastResult').textContent = data.result;
+          const { word, sellPrice, units } = data.sold;
+          document.getElementById('status').textContent =
+            `${word} SOLD @ $${sellPrice.toFixed(2)} x ${units.toFixed(2)} (${data.result})`;
         });
     }
 
@@ -119,7 +120,8 @@
       investmentState = JSON.parse(e.data);
       const { money, investment } = investmentState;
       document.getElementById('money').textContent = money.toFixed(2);
-      document.getElementById('currentInvest').textContent = investment ? `${investment.word} @ ${investment.count}` : 'None';
+      document.getElementById('status').textContent =
+        investment ? `${investment.word} @ $${investment.buyPrice.toFixed(2)} x ${investment.units.toFixed(2)}` : 'None';
     };
   </script>
 </body>
