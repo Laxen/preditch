@@ -5,11 +5,11 @@
 </head>
 <body>
   <h1>Twitch Word Tracker</h1>
-  <label>Channel: <input type="text" id="channel"></label><br>
+  <label>Channel: <input type="text" id="channel"></label>
+  <button onclick="connect()">Connect</button><br>
   <label>Target Word: <input type="text" id="word"></label><br>
-  <button onclick="startTracking()" id="start">Start</button>
+  <button onclick="submit()" id="submit">Submit</button>
   <h2>Points: <span id="points">0</span></h2>
-  <h3>Next word in: <span id="cooldown">0</span>s</h3>
   <h2>Chat</h2>
   <div id="chat" style="border:1px solid #ccc; height:200px; overflow-y:scroll;"></div>
   <h2>Top Words (last 10s)</h2>
@@ -19,30 +19,30 @@
   </table>
 
   <script>
-    let lastSubmitTime = 0;
     let trackedWord = "";
 
-    setInterval(() => {
-      const remaining = Math.max(0, 10 - Math.floor((Date.now() - lastSubmitTime) / 1000));
-      document.getElementById('cooldown').textContent = remaining;
-
-      document.getElementById('start').disabled = remaining > 0;
-      document.getElementById('word').disabled = remaining > 0;
-    }, 200);
-
-    function startTracking() {
-      const now = Date.now();
-      if (now - lastSubmitTime < 10000) return;
-
+    function connect() {
       const channel = document.getElementById('channel').value;
-      const word = document.getElementById('word').value;
-      fetch('/start', {
+
+      fetch('/connect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ channel, word })
+        body: JSON.stringify({ channel })
+      }).then(res => {
+        if (!res.ok) {
+          console.log("ERROR: Can't connect")
+        }
+      });
+    }
+
+    function submit() {
+      const word = document.getElementById('word').value;
+      fetch('/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ word })
       }).then(res => {
         if (res.ok) {
-          lastSubmitTime = Date.now();
           trackedWord = word;
         }
       });
@@ -59,15 +59,17 @@
 
       const word = trackedWord.toLowerCase();
       const escapedWord = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const re = new RegExp(`(${escapedWord})`, 'gi');
+      const re = new RegExp(`\\b(${escapedWord})\\b`, 'gi');
       const highlighted = e.data.replace(re, '<mark>$1</mark>');
       chatDiv.innerHTML += `<div>${highlighted}</div>`;
+
+      while (chatDiv.children.length > 100) chatDiv.removeChild(chatDiv.firstChild)
 
       chatDiv.scrollTop = chatDiv.scrollHeight;
     };
 
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') startTracking();
+      if (e.key === 'Enter') submit();
     });
 
     const wordSource = new EventSource('/words');

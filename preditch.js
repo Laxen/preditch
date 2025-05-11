@@ -7,49 +7,52 @@ app.use(express.static('.'));
 app.use(bodyParser.json());
 
 let client = null;
-let targetWord = '';
+let targetWord = 'weirdWordNoOneTypes';
 let pointCount = 0;
-let sseClients = [];
+let pointClients = [];
 let chatClients = [];
 
 let wordClients = [];
 let recentMessages = [];
-let lastWordTime = 0;
 
-app.post('/start', (req, res) => {
+function handleMessage(tags, message) {
   const now = Date.now();
-  if (now - lastWordTime < 10000) return res.status(429).send('Wait 10 seconds');
 
-  const { channel, word } = req.body;
-  targetWord = word.toLowerCase();
-  pointCount = 0;
-  lastWordTime = now;
+  const words = message.toLowerCase().split(/\W+/);
+  if (words.includes(targetWord)) {
+    pointCount++;
+    pointClients.forEach(res => res.write(`data: ${pointCount}\n\n`));
+  }
 
+  chatClients.forEach(res => res.write(`data: ${tags['display-name']}: ${message}\n\n`));
+
+  recentMessages.push({ time: now, text: message });
+  recentMessages = recentMessages.filter(m => now - m.time <= 10000);
+  const freq = {};
+  recentMessages.forEach(m => {
+    const unique = new Set(m.text.toLowerCase().split(/\W+/).filter(Boolean));
+    unique.forEach(w => freq[w] = (freq[w] || 0) + 1);
+  });
+  const topWords = Object.entries(freq).sort((a, b) => b[1] - a[1]).slice(0, 10);
+  wordClients.forEach(res => res.write(`data: ${JSON.stringify(topWords)}\n\n`));
+}
+
+app.post('/connect', (req, res) => {
   if (client) client.disconnect();
+
+  const { channel } = req.body;
 
   client = new tmi.Client({ channels: [channel] });
   client.connect();
 
   client.on('message', (_, tags, message) => {
-    if (message.toLowerCase().includes(targetWord)) {
-      pointCount++;
-      sseClients.forEach(res => res.write(`data: ${pointCount}\n\n`));
-    }
-
-    chatClients.forEach(res => res.write(`data: ${tags['display-name']}: ${message}\n\n`));
-
-    const now = Date.now();
-    recentMessages.push({ time: now, text: message });
-    recentMessages = recentMessages.filter(m => now - m.time <= 10000);
-    const words = recentMessages.flatMap(m => m.text.toLowerCase().split(/\W+/));
-    const freq = {};
-    words.forEach(w => {
-      if (!w) return;
-      freq[w] = (freq[w] || 0) + 1;
-    });
-    const topWords = Object.entries(freq).sort((a, b) => b[1] - a[1]).slice(0, 10);
-    wordClients.forEach(res => res.write(`data: ${JSON.stringify(topWords)}\n\n`));
+    handleMessage(tags, message);
   });
+});
+
+app.post('/submit', (req, res) => {
+  const { word } = req.body;
+  targetWord = word.toLowerCase();
 
   res.sendStatus(200);
 });
@@ -60,10 +63,10 @@ app.get('/points', (req, res) => {
   res.setHeader('Connection', 'keep-alive');
   res.flushHeaders();
   res.write(`data: ${pointCount}\n\n`);
-  sseClients.push(res);
+  pointClients.push(res);
 
   req.on('close', () => {
-    sseClients = sseClients.filter(c => c !== res);
+    pointClients = pointClients.filter(c => c !== res);
   });
 });
 
