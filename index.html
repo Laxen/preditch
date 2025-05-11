@@ -9,6 +9,7 @@
   <label>Target Word: <input type="text" id="word"></label><br>
   <button onclick="startTracking()">Start</button>
   <h2>Points: <span id="points">0</span></h2>
+  <h2>Word: <span id="word_spn">0</span></h2>
   <h2>Chat</h2>
   <div id="chat" style="border:1px solid #ccc; height:200px; overflow-y:scroll;"></div>
 
@@ -16,6 +17,7 @@
     function startTracking() {
       const channel = document.getElementById('channel').value;
       const word = document.getElementById('word').value;
+      document.getElementById('word_spn').textContent = word;
       fetch('/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -23,10 +25,27 @@
       });
     }
 
-    const eventSource = new EventSource('/points');
-    eventSource.onmessage = (e) => {
+    const pointSource = new EventSource('/points');
+    pointSource.onmessage = (e) => {
       document.getElementById('points').textContent = e.data;
     };
+
+    const chatSource = new EventSource('/chat');
+    chatSource.onmessage = (e) => {
+      const chatDiv = document.getElementById('chat');
+
+      const word = document.getElementById('word').value.toLowerCase();
+      const escapedWord = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const re = new RegExp(`(${escapedWord})`, 'gi');
+      const highlighted = e.data.replace(re, '<mark>$1</mark>');
+      chatDiv.innerHTML += `<div>${highlighted}</div>`;
+
+      chatDiv.scrollTop = chatDiv.scrollHeight;
+    };
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') startTracking();
+    });
   </script>
 </body>
 </html>
