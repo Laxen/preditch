@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Twitch Word Tracker</title>
+</head>
+<body>
+  <h1>Twitch Word Tracker</h1>
+  <label>Channel: <input type="text" id="channel"></label><br>
+  <label>Target Word: <input type="text" id="word"></label><br>
+  <button onclick="startTracking()">Start</button>
+  <h2>Points: <span id="points">0</span></h2>
+  <h2>Chat</h2>
+  <div id="chat" style="border:1px solid #ccc; height:200px; overflow-y:scroll;"></div>
+
+  <script>
+    function startTracking() {
+      const channel = document.getElementById('channel').value;
+      const word = document.getElementById('word').value;
+      fetch('/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channel, word })
+      });
+    }
+
+    const eventSource = new EventSource('/points');
+    eventSource.onmessage = (e) => {
+      document.getElementById('points').textContent = e.data;
+    };
+  </script>
+</body>
+</html>
+

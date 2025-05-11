@@ -1,13 +1,48 @@
+const express = require('express');
 const tmi = require('tmi.js');
+const bodyParser = require('body-parser');
 
-const client = new tmi.Client({
-	channels: [ 'ironmouse' ]
+const app = express();
+app.use(express.static('.'));
+app.use(bodyParser.json());
+
+let client = null;
+let targetWord = '';
+let pointCount = 0;
+let sseClients = [];
+
+app.post('/start', (req, res) => {
+  const { channel, word } = req.body;
+  targetWord = word.toLowerCase();
+
+  if (client) client.disconnect();
+
+  client = new tmi.Client({ channels: [channel] });
+  client.connect();
+
+  client.on('message', (_, tags, message) => {
+    console.log(message);
+    if (message.toLowerCase().includes(targetWord)) {
+      pointCount++;
+      sseClients.forEach(res => res.write(`data: ${pointCount}\n\n`));
+    }
+  });
+
+  res.sendStatus(200);
 });
 
-client.connect();
+app.get('/points', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+  res.write(`data: ${pointCount}\n\n`);
+  sseClients.push(res);
 
-client.on('message', (channel, tags, message, self) => {
-	// "Alca: Hello, World!"
-	console.log(`${tags['display-name']}: ${message}`);
+  req.on('close', () => {
+    sseClients = sseClients.filter(c => c !== res);
+  });
 });
+
+app.listen(3000, () => console.log('Server running on http://localhost:3000'));
 
