@@ -67,26 +67,6 @@ app.post('/connect', (req, res) => {
   });
 });
 
-app.post('/submit', (req, res) => {
-  const { word } = req.body;
-  targetWord = word.toLowerCase();
-
-  res.sendStatus(200);
-});
-
-app.get('/points', (req, res) => {
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-  res.flushHeaders();
-  res.write(`data: ${pointCount}\n\n`);
-  pointClients.push(res);
-
-  req.on('close', () => {
-    pointClients = pointClients.filter(c => c !== res);
-  });
-});
-
 app.get('/chat', (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
