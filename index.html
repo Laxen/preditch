@@ -9,7 +9,7 @@
   <label>Target Word: <input type="text" id="word"></label><br>
   <button onclick="startTracking()">Start</button>
   <h2>Points: <span id="points">0</span></h2>
-  <h2>Word: <span id="word_spn">0</span></h2>
+  <h3>Next word in: <span id="cooldown">0</span>s</h3>
   <h2>Chat</h2>
   <div id="chat" style="border:1px solid #ccc; height:200px; overflow-y:scroll;"></div>
   <h2>Top Words (last 10s)</h2>
@@ -19,14 +19,26 @@
   </table>
 
   <script>
+    setInterval(() => {
+      const remaining = Math.max(0, 10 - Math.floor((Date.now() - lastSubmitTime) / 1000));
+      document.getElementById('cooldown').textContent = remaining;
+    }, 200);
+
+    let lastSubmitTime = 0;
     function startTracking() {
+      const now = Date.now();
+      if (now - lastSubmitTime < 10000) return;
+
       const channel = document.getElementById('channel').value;
       const word = document.getElementById('word').value;
-      document.getElementById('word_spn').textContent = word;
       fetch('/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ channel, word })
+      }).then(res => {
+        if (res.ok) {
+          lastSubmitTime = Date.now();
+        }
       });
     }
 

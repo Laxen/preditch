@@ -14,10 +14,16 @@ let chatClients = [];
 
 let wordClients = [];
 let recentMessages = [];
+let lastWordTime = 0;
 
 app.post('/start', (req, res) => {
+  const now = Date.now();
+  if (now - lastWordTime < 10000) return res.status(429).send('Wait 10 seconds');
+
   const { channel, word } = req.body;
   targetWord = word.toLowerCase();
+  pointCount = 0;
+  lastWordTime = now;
 
   if (client) client.disconnect();
 
@@ -25,28 +31,23 @@ app.post('/start', (req, res) => {
   client.connect();
 
   client.on('message', (_, tags, message) => {
-    console.log(message);
-    chatClients.forEach(res => res.write(`data: ${tags['display-name']}: ${message}\n\n`));
-
     if (message.toLowerCase().includes(targetWord)) {
       pointCount++;
       sseClients.forEach(res => res.write(`data: ${pointCount}\n\n`));
     }
 
+    chatClients.forEach(res => res.write(`data: ${tags['display-name']}: ${message}\n\n`));
+
     const now = Date.now();
     recentMessages.push({ time: now, text: message });
-    recentMessages = recentMessages.filter(m => now - m.time <= 10000); // keep last 10s
-
+    recentMessages = recentMessages.filter(m => now - m.time <= 10000);
     const words = recentMessages.flatMap(m => m.text.toLowerCase().split(/\W+/));
     const freq = {};
     words.forEach(w => {
       if (!w) return;
       freq[w] = (freq[w] || 0) + 1;
     });
-    const topWords = Object.entries(freq)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 10);
-
+    const topWords = Object.entries(freq).sort((a, b) => b[1] - a[1]).slice(0, 10);
     wordClients.forEach(res => res.write(`data: ${JSON.stringify(topWords)}\n\n`));
   });
 
