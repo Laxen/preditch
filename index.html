@@ -12,6 +12,11 @@
   <h2>Word: <span id="word_spn">0</span></h2>
   <h2>Chat</h2>
   <div id="chat" style="border:1px solid #ccc; height:200px; overflow-y:scroll;"></div>
+  <h2>Top Words (last 10s)</h2>
+  <table id="wordTable" border="1">
+    <thead><tr><th>Word</th><th>Count</th></tr></thead>
+    <tbody></tbody>
+  </table>
 
   <script>
     function startTracking() {
@@ -46,6 +51,16 @@
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') startTracking();
     });
+
+    const wordSource = new EventSource('/words');
+    wordSource.onmessage = (e) => {
+      const table = document.querySelector('#wordTable tbody');
+      const data = JSON.parse(e.data);
+      table.innerHTML = '';
+      data.forEach(([word, count]) => {
+        table.innerHTML += `<tr><td>${word}</td><td>${count}</td></tr>`;
+      });
+    };
   </script>
 </body>
 </html>
