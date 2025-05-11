@@ -10,6 +10,13 @@
   <label>Target Word: <input type="text" id="word"></label><br>
   <button onclick="submit()" id="submit">Submit</button>
   <h2>Points: <span id="points">0</span></h2>
+  <h2>Investment</h2>
+  <div>Money: $<span id="money">100</span></div>
+  <div>Current: <span id="currentInvest">None</span></div>
+  <input type="text" id="investWord" placeholder="Word to invest">
+  <button onclick="invest()">Invest</button>
+  <button onclick="sell()">Sell</button>
+  <div>Last Result: <span id="lastResult">N/A</span></div>
   <h2>Chat</h2>
   <div id="chat" style="border:1px solid #ccc; height:200px; overflow-y:scroll;"></div>
   <h2>Top Words (last 10s)</h2>
@@ -20,6 +27,7 @@
 
   <script>
     let trackedWord = "";
+    let investmentState = { money: 100, investment: null };
 
     function connect() {
       const channel = document.getElementById('channel').value;
@@ -69,7 +77,14 @@
     };
 
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') submit();
+      console.log(e);
+      if (e.key === 'Enter') {
+        if (!investmentState.investment) {
+          invest();
+        } else if (investmentState.investment) {
+          sell();
+        }
+      }
     });
 
     const wordSource = new EventSource('/words');
@@ -80,6 +95,31 @@
       data.forEach(([word, count]) => {
         table.innerHTML += `<tr><td>${word}</td><td>${count}</td></tr>`;
       });
+    };
+
+    function invest() {
+      const word = document.getElementById('investWord').value;
+      fetch('/invest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ word })
+      });
+    }
+
+    function sell() {
+      fetch('/sell', { method: 'POST' })
+        .then(res => res.json())
+        .then(data => {
+          document.getElementById('lastResult').textContent = data.result;
+        });
+    }
+
+    const investSource = new EventSource('/investment');
+    investSource.onmessage = (e) => {
+      investmentState = JSON.parse(e.data);
+      const { money, investment } = investmentState;
+      document.getElementById('money').textContent = money.toFixed(2);
+      document.getElementById('currentInvest').textContent = investment ? `${investment.word} @ ${investment.count}` : 'None';
     };
   </script>
 </body>

@@ -15,6 +15,10 @@ let chatClients = [];
 let wordClients = [];
 let recentMessages = [];
 
+let money = 100;
+let investment = null; // { word, count }
+let investmentClients = [];
+
 function handleMessage(tags, message) {
   const now = Date.now();
 
@@ -92,6 +96,51 @@ app.get('/words', (req, res) => {
   req.on('close', () => {
     wordClients = wordClients.filter(c => c !== res);
   });
+});
+
+app.get('/investment', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+  investmentClients.push(res);
+  res.write(`data: ${JSON.stringify({ money, investment })}\n\n`);
+
+  req.on('close', () => {
+    investmentClients = investmentClients.filter(c => c !== res);
+  });
+});
+
+app.post('/invest', (req, res) => {
+  const { word } = req.body;
+  const count = (recentMessages.reduce((acc, m) => {
+    const w = m.text.toLowerCase().split(/\W+/);
+    return acc + (w.includes(word.toLowerCase()) ? 1 : 0);
+  }, 0));
+
+  investment = { word: word.toLowerCase(), count };
+  res.sendStatus(200);
+  investmentClients.forEach(r => r.write(`data: ${JSON.stringify({ money, investment })}\n\n`));
+});
+
+app.post('/sell', (req, res) => {
+  if (!investment) return res.sendStatus(400);
+
+  const { word, count: startCount } = investment;
+  const currentCount = (recentMessages.reduce((acc, m) => {
+    const w = m.text.toLowerCase().split(/\W+/);
+    return acc + (w.includes(word) ? 1 : 0);
+  }, 0));
+
+  const diff = currentCount - startCount;
+  console.log("Diff is ", diff);
+  money *= 1 + 0.1 * diff;
+  investment = null;
+
+  const result = ((money / (1 + 0.1 * diff)) * (0.1 * diff)).toFixed(2);
+  console.log(result)
+  res.json({ result: `${diff >= 0 ? '+' : ''}$${result}` });
+  investmentClients.forEach(r => r.write(`data: ${JSON.stringify({ money, investment })}\n\n`));
 });
 
 app.listen(3000, () => console.log('Server running on http://localhost:3000'));
