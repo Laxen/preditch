@@ -7,7 +7,7 @@
   <h1>Twitch Word Tracker</h1>
   <label>Channel: <input type="text" id="channel"></label><br>
   <label>Target Word: <input type="text" id="word"></label><br>
-  <button onclick="startTracking()">Start</button>
+  <button onclick="startTracking()" id="start">Start</button>
   <h2>Points: <span id="points">0</span></h2>
   <h3>Next word in: <span id="cooldown">0</span>s</h3>
   <h2>Chat</h2>
@@ -19,12 +19,17 @@
   </table>
 
   <script>
+    let lastSubmitTime = 0;
+    let trackedWord = "";
+
     setInterval(() => {
       const remaining = Math.max(0, 10 - Math.floor((Date.now() - lastSubmitTime) / 1000));
       document.getElementById('cooldown').textContent = remaining;
+
+      document.getElementById('start').disabled = remaining > 0;
+      document.getElementById('word').disabled = remaining > 0;
     }, 200);
 
-    let lastSubmitTime = 0;
     function startTracking() {
       const now = Date.now();
       if (now - lastSubmitTime < 10000) return;
@@ -38,6 +43,7 @@
       }).then(res => {
         if (res.ok) {
           lastSubmitTime = Date.now();
+          trackedWord = word;
         }
       });
     }
@@ -51,7 +57,7 @@
     chatSource.onmessage = (e) => {
       const chatDiv = document.getElementById('chat');
 
-      const word = document.getElementById('word').value.toLowerCase();
+      const word = trackedWord.toLowerCase();
       const escapedWord = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const re = new RegExp(`(${escapedWord})`, 'gi');
       const highlighted = e.data.replace(re, '<mark>$1</mark>');
